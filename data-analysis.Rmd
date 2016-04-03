@@ -1,6 +1,35 @@
 ---
-title: Traffic Data Analysis
+title: "Traffic Data Analysis"
 output: html_document
+author: "Ahmed Akram"
 ---
 
-this is where things start :)
+
+```{r, message=FALSE}
+library(dplyr)
+library(ggplot2)
+library(knitr)
+```
+
+## Data Processing
+
+We'll load the data and take a look around its different columns and a sample of records.
+```{r}
+data.raw <- read.csv('traffic-data.csv')
+data.raw %>% glimpse
+```
+
+we have many features concerning the ads, let's see how many unique ad logos we got, just to make sure the ad features are not relevant to our investigation.
+
+```{r}
+data.raw %>% select(ad.logo) %>% unique() %>% length()
+```
+
+since there's only one unique logo, then the ad is the same across all the rerports we got. Let's remove all features prefixed with "ad"
+
+```{r}
+data.reports <- data.raw %>% select(-(starts_with("ad")))
+```
+
+
+
