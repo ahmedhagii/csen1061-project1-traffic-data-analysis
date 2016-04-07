@@ -16,7 +16,7 @@ library(class)
 ### Data Processing
 
 We'll load the data and take a look around its different columns and a sample of records.
-```{r}
+```{r,  warning=FALSE}
 Sys.setlocale(category="LC_ALL", locale="en_US.UTF-8")
 data.raw <- read.csv('traffic-data.csv', encoding="UTF-8")
 data.raw %>% glimpse
@@ -26,7 +26,7 @@ data.raw %>% glimpse
 
 we have many features concerning the ads, let's see how many unique ad logos we got, just to make sure the ad features are not relevant to our investigation.
 
-```{r}
+```{r,  warning=FALSE}
 data.raw %>% select(ad.logo) %>% unique %>% nrow
 ```
 
@@ -37,12 +37,12 @@ data.reports <- data.raw %>% select(-(starts_with("ad")))
 ```
 
 let's run this and get the count of unique elements for each feature
-```{r}
+```{r,  warning=FALSE}
 count_uniques <- sapply(data.reports, function(x) length(unique(x)))
 ```
 
 now remove those with a 1 unique element
-```{r}
+```{r,  warning=FALSE}
 unwanted <- count_uniques[count_uniques == 1]
 data.reports <- data.reports[, !names(data.reports) %in% names(unwanted)]
 ```
@@ -52,13 +52,13 @@ data.reports <- data.reports[, !names(data.reports) %in% names(unwanted)]
 
 let's try to find if we got any duplicates. A duplicate would occur if we crawled the same data, but at different times. So first I'll ignore the "crawl_date" column and compare using the rest.
 
-```{r}
+```{r,  warning=FALSE}
 data.no_date <- data.reports %>% select(-(crawl_date))
 ```
 
 get all unique reports based only on the comment id, since each comment has a unique id (I suppose .. ?)
 
-```{r}
+```{r,  warning=FALSE}
 data.unique_comments_ids <- data.no_date %>% subset(!duplicated(rd.rp.cmid))
 data.unique_comments_ids %>% nrow
 ```
@@ -66,24 +66,24 @@ data.unique_comments_ids %>% nrow
 now when I remove all the times features, we already removed the crawl date, but there are those columns telling us when the reprot was posted (posted 2 hours ago), this one will be represented by `rd.rp.hr` and `rd.rp.mn`. Morever there're `rd.hr` and `rd.mn`. I'm still not quite sure what they represent, but most probably the last time the whole line or road was updated. 
 
 I'll remove all those for now and have the data with no times at all. 
-```{r}
+```{r,  warning=FALSE}
 data.no_times <- data.no_date %>% select(-rd.hr, -rd.mn, -rd.rp.hr, -rd.rp.mn)
 ```
 
 Now if I were to run this, I expect to have the same number of records that I had in the `data.unique_comments_ids` dataframe.
-```{r}
+```{r,  warning=FALSE}
 data.no_times %>% unique %>% nrow
 ```
 
 as you can see that doesn't happen, the later gave us `148367` while this one `209375`. I need to know which records are there with the same comment ids but differ in other columns. Let's investigate this a bit.
 
 
-```{r}
+```{r,  warning=FALSE}
 data.raw %>% count(rd.rp.cmid) %>% subset(n > 1) %>% arrange(-n)
 ```
 grouping the data by the `cmid` and looking at them, shows that each group has a maximum of 4 comments grouped together. The below function just prints some of these groups.
 
-```{r}
+```{r,  warning=FALSE}
 fn <- function(data) {
     cm_ids <- data %>% count(rd.rp.cmid) %>% subset(n > 1) %>% arrange(-n) %>% select(rd.rp.cmid)
     cm_ids_arr <- cm_ids$rd.rp.cmid
@@ -93,7 +93,7 @@ fn <- function(data) {
 ```
 
 let's execute it:
-```{r}
+```{r,  warning=FALSE}
 fn(data.no_times %>% unique)
 ```
 
@@ -101,7 +101,7 @@ the printed data showed that each group of comments will have the same road name
 
 ## Removing duplicates
 
-```{r}
+```{r,  warning=FALSE}
 data.unique <- data.reports %>% subset(!duplicated(rd.rp.cmid))
 ```
 
@@ -110,7 +110,7 @@ data.unique <- data.reports %>% subset(!duplicated(rd.rp.cmid))
 #### Reformating crawl_date
 
 Format the crawl_date into date and adding 2 hours to accomodate for difference in timing between Cairo time and UTC time.
-```{r}
+```{r,  warning=FALSE}
 data.unique$crawl_date <- strptime(data.unique$crawl_date, "%a %b %d %H:%M:%S UTC %Y", tz="UTC")
 
 data.unique$crawl_date <- data.unique$crawl_date + as.difftime(2, unit="hours")
@@ -120,7 +120,7 @@ data.unique$crawl_date <- data.unique$crawl_date + as.difftime(2, unit="hours")
 
 Now to get the actual date of the report, we need to use the `rd.rp.hr` and `rd.rp.mn` columns. These two form the `1 hour ago`, `30 mins ago` and so on. So by performing crawl_hour - rd.rp.hr we should get the actual hour of posting the report.
 
-```{r}
+```{r,  warning=FALSE}
 data.unique$report_times <- (data.unique$crawl_date - as.difftime(as.numeric(data.unique$rd.rp.hr), unit="hours") - as.difftime(as.numeric(data.unique$rd.rp.mn), unit="mins"))
 
 data.unique$report_hour <- data.unique$report_times %>% format("%H")
@@ -141,7 +141,7 @@ data.unique$report_day_name <- data.unique$report_times %>% format("%a")
 | rd.stid      | road_status        |
 | rd.nm        | road_name          |
 
-```{r}
+```{r,  warning=FALSE}
 data.unique <- data.unique %>% rename(
     report_comment=rd.rp.cm, 
     report_status_id=rd.rp.stid,
@@ -157,7 +157,7 @@ data.unique <- data.unique %>% select(-rd.rp.hr, -rd.rp.mn, -rd.hr, -rd.mn)
 ```
 
 
-```{r}
+```{r,  warning=FALSE}
 cat(sort(data.unique%>%names()), sep="\n")
 ```
 
@@ -165,7 +165,7 @@ cat(sort(data.unique%>%names()), sep="\n")
 
 by running this for each report_status, we can get the most frequent associated comment.
 
-```{r}
+```{r,  warning=FALSE}
 status <- function() {
   ret = c()
   for(id in 1:11) {
@@ -192,7 +192,7 @@ status()
 | 10 | GPS reporter status |
 |----|---------------------|
 
-```{r}
+```{r,  warning=FALSE}
 data.unique$report_hour <- as.numeric(data.unique$report_hour)
 
 data.unique$report_status <- 
@@ -209,7 +209,7 @@ data.unique$report_status <-
 
 LEt's start by plotting some graphs ( finally :') ), we'll plot the hour of day against the no. of reports
 
-```{r}
+```{r,  warning=FALSE}
 p <- data.unique %>% ggplot() + stat_count(aes(x=report_hour, show_legend=FALSE), fill="firebrick2", colour="black" ,alpha=0.7, width=1) + xlab("Hour") + ylab("Count")
 
 p
@@ -218,7 +218,7 @@ p
 the results agrees with kind of an obvious insight that the rush hours would have the most number of reports. (8-10 AM and 4-6 PM)
 
 Now let's plot the no. of reports against the report status 
-```{r}
+```{r,  warning=FALSE}
 p <- data.unique %>% ggplot() + stat_count(aes(x=report_status, show_legend=FALSE, geom="point"), fill="blue", colour="cyan", alpha=0.7, width=0.96) + xlab("Hour") + ylab("Count")
 
 p
@@ -229,12 +229,12 @@ this is really interesting, what I had in mind (and kinda makes sense) is that t
 ## investigate the positive vs negative reports
 
 let's group by status and hour, and then add a new feature counting how many reports in each hour and status
-```{r}
+```{r,  warning=FALSE}
 data.grouped <- data.unique %>% group_by_("report_status", "report_hour") %>% mutate(reports_per_hour_and_status=n())
 ```
 
 
-```{r}
+```{r,  warning=FALSE}
 p <- data.grouped %>% ggplot(aes(report_hour, reports_per_hour_and_status, col=report_status)) + scale_x_continuous(name="Hour", breaks=seq(0,23, 4)) + scale_y_continuous("No. of reports") + scale_color_discrete("Status")
 
 p.scatter <- p + geom_point(alpha=0.6)
@@ -247,8 +247,8 @@ p.scatter.smooth
 
 Let's extract the speed from bey2ollak's gps auto reporter
 
-```{r}
-data.unique$speed <- data.unique %>% select(report_comment) %>% sapply(function(x) {
+```{r,  warning=FALSE}
+data.unique$speed <- data.unique %>% select(report_comment) %>% apply(1, function(x) {
     speed1 <- str_extract(x, "[0-9]+ km") %>% str_extract("[0-9]+") %>% as.numeric()
     
     if(is.na(speed1)[1]) {
@@ -263,35 +263,35 @@ data.unique$speed <- data.unique %>% select(report_comment) %>% sapply(function(
 ```
 
 a quick summary of the speeds
-```{r}
+```{r,  warning=FALSE}
 data.unique$speed %>% summary
 ```
 
 we need to remove the outliers 
-```{r}
+```{r,  warning=FALSE}
 data.unique %>% subset(speed > 200) %>% select(report_comment)
 ```
 
 (shabab mostahter ....)
 
-```{r}
+```{r,  warning=FALSE}
 data.unique <- data.unique %>% subset(speed <= 200)
 ```
 
 
 Let's see how many repors have a status of "GPS reporter status"
-```{r}
+```{r,  warning=FALSE}
 gps = "bey2ollakgps"
 data.unique %>% subset(report_status_id == 10) %>% subset(reporter_name==gps) %>% nrow
 ```
 
 and the following will get how many reports by bey2ollak gps have meaningful statuses [lazeez, 7alawa, za7ma ...]
-```{r}
+```{r,  warning=FALSE}
  data.unique %>% subset(!is.na(report_status)) %>% subset(report_status_id != 10) %>% subset(reporter_name==gps) %>% select(report_comment, speed, report_status) %>% nrow
 ```
 
 we need to classify those with status "GPS Report" into one of the other categories. First, let's boxplot the speed against the statuses. I guess we'll find a lot of outliers in the "GPS reporter status" as it contains a lot of repots that need to be categorized
-```{r}
+```{r,  warning=FALSE}
 data.unique %>% subset(report_status != "khatar-radar") %>% subset(!is.na(speed)) %>% subset(reporter_name==gps) %>% subset(!is.na(report_status)) %>% ggplot(aes(report_status, speed, col=report_status)) + geom_boxplot(alpha=0.7)
 ```
 
