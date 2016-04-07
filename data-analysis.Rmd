@@ -7,6 +7,7 @@ author: "Ahmed Akram"
 
 ```{r, message=FALSE}
 library(dplyr)
+library(reader)
 library(ggplot2)
 library(knitr)
 library(foreach)
@@ -20,6 +21,8 @@ data.raw <- read.csv('traffic-data.csv')
 data.raw %>% glimpse
 ```
 
+#### removing constant features
+
 we have many features concerning the ads, let's see how many unique ad logos we got, just to make sure the ad features are not relevant to our investigation.
 
 ```{r}
@@ -32,11 +35,15 @@ since there's only one unique logo, then the ad is the same across all the rerpo
 data.reports <- data.raw %>% select(-(starts_with("ad")))
 ```
 
-
-#### keep an eye on this for now
+let's run this and get the count of unique elements for each feature
 ```{r}
-sapply(data.reports, function(x) length(unique(x)))
-data.reports %>% select(rd.cl) %>% glimpse
+count_uniques <- sapply(data.reports, function(x) length(unique(x)))
+```
+
+now remove those with a 1 unique element
+```{r}
+unwanted <- count_uniques[count_uniques == 1]
+data.reports <- data.reports[, !names(data.reports) %in% names(unwanted)]
 ```
 
 
@@ -80,7 +87,7 @@ fn <- function(data) {
     cm_ids <- data %>% count(rd.rp.cmid) %>% subset(n > 1) %>% arrange(-n) %>% select(rd.rp.cmid)
     cm_ids_arr <- cm_ids$rd.rp.cmid
     for(i in 1:5)
-        print(data %>% subset(rd.rp.cmid == cm_ids_arr[i]) %>% select(rd.rp.cm, rd.rp.nm, rd.nm), width=Inf)
+        print(data %>% subset(rd.rp.cmid == cm_ids_arr[i]) %>% select(rd.rp.cm, rd.rp.nm, rd.nm, rd.stid), width=Inf)
 }
 ```
 
@@ -94,3 +101,24 @@ the printed data showed that each group of comments will have the same road name
 #### Removing duplicates
 
 
+
+### Reformating crawl_date
+
+Format the crawl_date into date and minus 2 hours to accomodate for difference in timing between Cairo time and UTC time.
+```{r}
+data.reports$crawl_date <- strptime(data.reports$crawl_date, "%a %b %d %H:%M:%S UTC %Y", tz="UTC")
+
+data.reports$crawl_date <- data.reports$crawl_date - as.difftime(2, unit="hours")
+```
+
+### Getting the real time of the report
+
+Now to get the actual date of the report, we need to use the `rd.rp.hr` and `rd.rp.mn` columns. These two form the `1 hour ago`, `30 mins ago` and so on. So by performing crawl_hour - rd.rp.hr we should get the actual hour of posting the report.
+
+```{r}
+data.reports$report_times <- (data.reports$crawl_date - as.difftime(as.numeric(data.reports$rd.rp.hr), unit="hours") - as.difftime(as.numeric(data.reports$rd.rp.mn), unit="mins"))
+
+data.reports$report_hour <- data.reports$report_times %>% format("%H")
+data.reports$report_minute <- data.reports$report_times %>% format("%M")
+data.reports$report_day_name <- data.reports$report_times %>% format("%a")
+```
