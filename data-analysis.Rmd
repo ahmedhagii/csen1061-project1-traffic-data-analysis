@@ -129,14 +129,13 @@ data.unique$report_day_name <- data.unique$report_times %>% format("%a")
 ```
 
 #### Renaming the features
-
-|--------------|--------------------|
+|              |                    |
+|:------------:|:------------------:|
 | rd.rp.cmid   | rerport.id         |
 | rd.rp.cm     | report_comment     |
 | rd.rp.stid   | report_status      |
 | rd.rp.nm     | reporter_name      |
 | rd.rp.fullnm | reporter_full_name |
-|              |                    |
 | rd.ri        | road_id            |
 | rd.stid      | road_status        |
 | rd.nm        | road_name          |
@@ -179,7 +178,8 @@ status <- function() {
 status()
 ```
 
-|----|---------------------|
+|    |                     |
+|:--:|:-------------------:|
 | 1  | 7alawa              |
 | 2  | lazeez              |
 | 3  | mashy               |
@@ -190,7 +190,6 @@ status()
 | 8  | 7adsa               |
 | 9  | 3otl                |
 | 10 | GPS reporter status |
-|----|---------------------|
 
 ```{r,  warning=FALSE}
 data.unique$report_hour <- as.numeric(data.unique$report_hour)
@@ -219,8 +218,9 @@ the results agrees with kind of an obvious insight that the rush hours would hav
 
 Now let's plot the no. of reports against the report status 
 ```{r,  warning=FALSE}
+png(file="statuses.png",width=400, height=350)
 p <- data.unique %>% ggplot() + stat_count(aes(x=report_status, show_legend=FALSE, geom="point"), fill="blue", colour="cyan", alpha=0.7, width=0.96) + xlab("Hour") + ylab("Count")
-
+dev.off()
 p
 ```
 
@@ -292,7 +292,7 @@ and the following will get how many reports by bey2ollak gps have meaningful sta
 
 we need to classify those with status "GPS Report" into one of the other categories. First, let's boxplot the speed against the statuses. I guess we'll find a lot of outliers in the "GPS reporter status" as it contains a lot of repots that need to be categorized
 ```{r,  warning=FALSE}
-data.unique %>% subset(report_status != "khatar-radar") %>% subset(!is.na(speed)) %>% subset(reporter_name==gps) %>% subset(!is.na(report_status)) %>% ggplot(aes(report_status, speed, col=report_status)) + geom_boxplot(alpha=0.7)
+data.unique %>% subset(report_status != "khatar-radar") %>% subset(!is.na(speed)) %>% subset(reporter_name==gps) %>% subset(!is.na(report_status)) %>% ggplot(aes(report_status, speed, col=report_status)) + geom_boxplot(alpha=0.7) +  scale_y_continuous("Speed") + scale_color_discrete("Status")
 ```
 
 as expected we do have a lot of outliers. The "lazeez" status has some outliers into the negative part too. This could be explained by the fact that there're some roads that are not suitable for high speeds, but they're actually moving and not stuck, e.g. a car running 20 km/hr not because of the traffic, but rather because the road is not well done.
