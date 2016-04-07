@@ -9,7 +9,7 @@ author: "Ahmed Akram"
 library(dplyr)
 library(ggplot2)
 library(knitr)
-library(stringer)
+library(stringr)
 library(class)
 ```
 
@@ -101,15 +101,19 @@ the printed data showed that each group of comments will have the same road name
 
 ## Removing duplicates
 
+```{r}
+data.unique <- data.reports %>% subset(!duplicated(rd.rp.cmid))
+```
+
 
 
 #### Reformating crawl_date
 
 Format the crawl_date into date and adding 2 hours to accomodate for difference in timing between Cairo time and UTC time.
 ```{r}
-data.reports$crawl_date <- strptime(data.reports$crawl_date, "%a %b %d %H:%M:%S UTC %Y", tz="UTC")
+data.unique$crawl_date <- strptime(data.unique$crawl_date, "%a %b %d %H:%M:%S UTC %Y", tz="UTC")
 
-data.reports$crawl_date <- data.reports$crawl_date + as.difftime(2, unit="hours")
+data.unique$crawl_date <- data.unique$crawl_date + as.difftime(2, unit="hours")
 ```
 
 #### Getting the real time of the report
@@ -117,11 +121,11 @@ data.reports$crawl_date <- data.reports$crawl_date + as.difftime(2, unit="hours"
 Now to get the actual date of the report, we need to use the `rd.rp.hr` and `rd.rp.mn` columns. These two form the `1 hour ago`, `30 mins ago` and so on. So by performing crawl_hour - rd.rp.hr we should get the actual hour of posting the report.
 
 ```{r}
-data.reports$report_times <- (data.reports$crawl_date - as.difftime(as.numeric(data.reports$rd.rp.hr), unit="hours") - as.difftime(as.numeric(data.reports$rd.rp.mn), unit="mins"))
+data.unique$report_times <- (data.unique$crawl_date - as.difftime(as.numeric(data.unique$rd.rp.hr), unit="hours") - as.difftime(as.numeric(data.unique$rd.rp.mn), unit="mins"))
 
-data.reports$report_hour <- data.reports$report_times %>% format("%H")
-data.reports$report_minute <- data.reports$report_times %>% format("%M")
-data.reports$report_day_name <- data.reports$report_times %>% format("%a")
+data.unique$report_hour <- data.unique$report_times %>% format("%H")
+data.unique$report_minute <- data.unique$report_times %>% format("%M")
+data.unique$report_day_name <- data.unique$report_times %>% format("%a")
 ```
 
 #### Renaming the features
@@ -138,7 +142,7 @@ data.reports$report_day_name <- data.reports$report_times %>% format("%a")
 | rd.nm        | road_name          |
 
 ```{r}
-data.reports <- data.reports %>% rename(
+data.unique <- data.unique %>% rename(
     report_comment=rd.rp.cm, 
     report_status_id=rd.rp.stid,
     report_id=rd.rp.cmid,
@@ -149,12 +153,12 @@ data.reports <- data.reports %>% rename(
     road_name=rd.nm
 )
 
-data.reports <- data.reports %>% select(-rd.rp.hr, rd.rp.mn)
+data.unique <- data.unique %>% select(-rd.rp.hr, -rd.rp.mn, -rd.hr, -rd.mn)
 ```
 
 
 ```{r}
-cat(sort(data.reports%>%names()), sep="\n")
+cat(sort(data.unique%>%names()), sep="\n")
 ```
 
 #### Identifying different statuses [lazeez, 7alawa ...]
@@ -165,7 +169,7 @@ by running this for each report_status, we can get the most frequent associated 
 status <- function() {
   ret = c()
   for(id in 1:11) {
-    status_word <- (data.reports %>% subset(report_status_id == id) %>% count(report_comment) %>% arrange(-n))[1,1]
+    status_word <- (data.unique %>% subset(report_status_id == id) %>% count(report_comment) %>% arrange(-n))[1,1]
     
     ret[id] = c(status_word, id)
   }
@@ -189,7 +193,15 @@ status()
 |----|---------------------|
 
 ```{r}
-data.reports$report_hour <- as.numeric(data.reports$report_hour)
+data.unique$report_hour <- as.numeric(data.unique$report_hour)
+
+data.unique$report_status <- 
+  data.unique$report_status_id %>% 
+  sapply(function(x) {
+    statuses <- c("7alawa", "lazeez", "mashy", "za7ma", "mafeesh amal", "Eigh el nezam?", "khatar-radar", "7adsa", "3otl", "GPS reporter status")
+     
+     statuses[x]
+})
 ```
 
 
@@ -236,7 +248,7 @@ p.scatter.smooth
 Let's extract the speed from bey2ollak's gps auto reporter
 
 ```{r}
-data.unique$speed <- data.unique %>% select(report_comment) %>% apply(1, function(x) {
+data.unique$speed <- data.unique %>% select(report_comment) %>% sapply(function(x) {
     speed1 <- str_extract(x, "[0-9]+ km") %>% str_extract("[0-9]+") %>% as.numeric()
     
     if(is.na(speed1)[1]) {
@@ -267,11 +279,20 @@ data.unique <- data.unique %>% subset(speed <= 200)
 ```
 
 
-
+Let's see how many repors have a status of "GPS reporter status"
 ```{r}
-data.unique %>% subset(reporter_name=="bey2ollakgps") %>% subset(report_status != "GPS reporter status") %>% select(report_comment, report_status) %>% nrow
-````
+gps = "bey2ollakgps"
+data.unique %>% subset(report_status_id == 10) %>% subset(reporter_name==gps) %>% nrow
+```
 
+and the following will get how many reports by bey2ollak gps have meaningful statuses [lazeez, 7alawa, za7ma ...]
+```{r}
+ data.unique %>% subset(!is.na(report_status)) %>% subset(report_status_id != 10) %>% subset(reporter_name==gps) %>% select(report_comment, speed, report_status) %>% nrow
+```
 
+we need to classify those with status "GPS Report" into one of the other categories. First, let's boxplot the speed against the statuses. I guess we'll find a lot of outliers in the "GPS reporter status" as it contains a lot of repots that need to be categorized
+```{r}
+data.unique %>% subset(report_status != "khatar-radar") %>% subset(!is.na(speed)) %>% subset(reporter_name==gps) %>% subset(!is.na(report_status)) %>% ggplot(aes(report_status, speed, col=report_status)) + geom_boxplot(alpha=0.7)
+```
 
-
+as expected we do have a lot of outliers. The "lazeez" status has some outliers into the negative part too. This could be explained by the fact that there're some roads that are not suitable for high speeds, but they're actually moving and not stuck, e.g. a car running 20 km/hr not because of the traffic, but rather because the road is not well done.
