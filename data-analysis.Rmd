@@ -9,6 +9,8 @@ author: "Ahmed Akram"
 library(dplyr)
 library(ggplot2)
 library(knitr)
+library(stringer)
+library(class)
 ```
 
 ### Data Processing
@@ -196,7 +198,7 @@ data.reports$report_hour <- as.numeric(data.reports$report_hour)
 LEt's start by plotting some graphs ( finally :') ), we'll plot the hour of day against the no. of reports
 
 ```{r}
-p <- data.unique %>% ggplot() + stat_count(aes(x=report_hour, show_legend=FALSE, geom="point"), fill="firebrick2", colour="black" ,alpha=0.7, width=1, position = 'dodge') + xlab("Hour") + ylab("Count")
+p <- data.unique %>% ggplot() + stat_count(aes(x=report_hour, show_legend=FALSE), fill="firebrick2", colour="black" ,alpha=0.7, width=1) + xlab("Hour") + ylab("Count")
 
 p
 ```
@@ -216,21 +218,59 @@ this is really interesting, what I had in mind (and kinda makes sense) is that t
 
 let's group by status and hour, and then add a new feature counting how many reports in each hour and status
 ```{r}
-data.unique <- data.unique %>% group_by_("report_status", "report_hour") %>% mutate(reports_per_hour_and_status=n())
+data.grouped <- data.unique %>% group_by_("report_status", "report_hour") %>% mutate(reports_per_hour_and_status=n())
 ```
 
 
 ```{r}
-p <- data.unique %>% ggplot(aes(report_hour, reports_per_hour_and_status, col=report_status)) + scale_x_continuous(name="Hour", breaks=seq(0,23, 4)) + scale_y_continuous("No. of reports") + scale_color_discrete("Status")
+p <- data.grouped %>% ggplot(aes(report_hour, reports_per_hour_and_status, col=report_status)) + scale_x_continuous(name="Hour", breaks=seq(0,23, 4)) + scale_y_continuous("No. of reports") + scale_color_discrete("Status")
 
 p.scatter <- p + geom_point(alpha=0.6)
 
 p.scatter.smooth <- p.scatter + geom_smooth(se=FALSE, span=0.1)
 
-ggplot(test, aes(report_hour, reports_per_hour_and_status, col=report_status)) + geom_point(alpha=0.6) + geom_smooth(se=FALSE, span=0.1) + scale_x_continuous(name="Hour", breaks=c(0:24)) + scale_y_continuous("No. of reports") + scale_color_discrete("Status")
+p.scatter.smooth
 ```
 
 
+Let's extract the speed from bey2ollak's gps auto reporter
+
+```{r}
+data.unique$speed <- data.unique %>% select(report_comment) %>% apply(1, function(x) {
+    speed1 <- str_extract(x, "[0-9]+ km") %>% str_extract("[0-9]+") %>% as.numeric()
+    
+    if(is.na(speed1)[1]) {
+        speed2 <- str_extract(x, "[0-9]+ كم") %>% str_extract("[0-9]+") %>% as.numeric()    
+        speed_result <- speed2
+    }else {
+        speed_result <- speed1
+    }
+    
+    speed_result
+})
+```
+
+a quick summary of the speeds
+```{r}
+data.unique$speed %>% summary
+```
+
+we need to remove the outliers 
+```{r}
+data.unique %>% subset(speed > 200) %>% select(report_comment)
+```
+
+(shabab mostahter ....)
+
+```{r}
+data.unique <- data.unique %>% subset(speed <= 200)
+```
+
+
+
+```{r}
+data.unique %>% subset(reporter_name=="bey2ollakgps") %>% subset(report_status != "GPS reporter status") %>% select(report_comment, report_status) %>% nrow
+````
 
 
 
